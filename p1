@@ -1,0 +1,428 @@
+from PyQt5.QtWidgets import QApplication, QMainWindow, QListWidget, QListWidgetItem, QPushButton, QLabel, QMessageBox
+from PyQt5.QtCore import Qt, QUrl
+from PyQt5 import QtWidgets
+import datetime
+
+# global links
+links=set()
+try:
+    class ListBoxWidget(QListWidget):
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            self.setAcceptDrops(True)
+            self.resize(400, 300)
+    
+        def dragEnterEvent(self, event):
+            if event.mimeData().hasUrls:
+                event.accept()
+            else:
+                event.ignore()
+    
+        def dragMoveEvent(self, event):
+            if event.mimeData().hasUrls():
+                event.setDropAction(Qt.CopyAction)
+                event.accept()
+            else:
+                event.ignore()
+    
+        def dropEvent(self, event):
+            if event.mimeData().hasUrls():
+                event.setDropAction(Qt.CopyAction)
+                event.accept()
+    
+                # global links
+                # links = []
+                for url in event.mimeData().urls():
+                    # https://doc.qt.io/qt-5/qurl.html
+                    if url.isLocalFile():
+                        links.add(str(url.toLocalFile()))
+                    else:
+                        links.add(str(url.toString()))
+                self.addItems(links)
+            else:
+                event.ignore() 
+
+    
+    class AppDemo(QMainWindow):
+        def __init__(self):
+            super().__init__()
+            self.resize(400, 450)
+    
+            self.listbox_view = ListBoxWidget(self)
+            self.defaultText='Enter Saving Path (Default C:/NC/)'
+            self.t1 = QtWidgets.QLineEdit(self.defaultText,self)
+            self.t1.setGeometry(25, 320, 350, 30)
+            
+            self.btn = QPushButton('Generate File', self)
+            self.btn.setGeometry(270, 360, 100, 40)
+            
+            self.btn.clicked.connect(lambda: print(self.getSelectedItem()))
+    
+            
+            self.btn2 = QPushButton('Reset', self)
+            self.btn2.setGeometry(30, 360, 100, 40)
+            
+            self.btn2.clicked.connect(lambda:print(self.reset()))
+            
+        def reset(self):
+            self.listbox_view.clear()
+            global links
+            links=set()
+            self.t1.setText(self.defaultText)
+            
+        def getSelectedItem(self):
+            try:
+                d=[]
+#                 print(len(links))
+                for i in list(links):
+                    otherVer=False
+                    df = pd.read_html(i)
+                    date = df[0][2].values[0].split()[0]  #date
+                    ver = df[0][2].values[0].split()[-1]    #version
+                    if ver !='V5.01':
+                        otherVer=True
+                        
+                    prog_name = list(df[1].loc[df[1][0]=='PROGRAM NAME:',[1]].values.flatten())[0].split()[0]    #programe Name
+                    mat_id = df[1].loc[df[1][0]=='MATERIAL ID:',[1]].values.flatten()[0]  #material Id
+                    blank = ' '.join(df[1].loc[df[1][0]=='BLANK:',[1]].values.flatten()[0].split()[:5])  #blank
+                    scrap = float(df[1].loc[df[1][0]=='SCRAP:',[1]].values.flatten()[0].split()[0]) #Scrap
+                    time = ''.join(df[1].loc[df[1][0]=='MACHINING TIME:',[1]].values.flatten()[0].split()[:5])    #Machine Time
+                    prog_runs = int(df[1].loc[df[1][0]=='NUMBER OF PROGRAMME RUNS:',[1]].values.flatten()[0]) #Number of program Runs
+                    if otherVer:
+                       nc_name = df[1].loc[df[1][0]=='NC PROGRAM PATH:',[1]].values.flatten()[0]  #Nc Program Name
+                    else:
+                        nc_name = df[1].loc[df[1][0]=='NC-PROGRAM NAME:',[1]].values.flatten()[0]  #Nc Program Name
+                    
+                    data = {'Date of Nesting':date,
+                            'SOFTWARE VER.':ver,
+                            'PROGRAM NAME:':prog_name,
+                            'Material ID':mat_id,
+                            'BLANK:(mm)':blank,
+                            'Scrap %':scrap,
+                            'MACHINING TIME:[h:min:s]':time,
+                            'NUMBER OF PROGRAMME RUNS:':prog_runs,
+                            'NC-PROGRAM NAME:':nc_name}
+                            
+                    d.append(data)
+                df1 = pd.DataFrame(d)
+                df1.set_index('Date of Nesting', inplace=True)
+                
+                d = []
+                d1=[]
+                d2=[]
+                for i in list(links):
+                    otherVer=False
+                    df = pd.read_html(i)
+                    date = df[0][2].values[0].split()[0]  #date
+                    ver = df[0][2].values[0].split()[-1]    #version
+                    if ver !='V5.01':
+                        otherVer=True
+                        
+                    Description = ' '
+                    prog_name = list(df[1].loc[df[1][0]=='PROGRAM NAME:',[1]].values.flatten())[0].split()[0]    #programe Name
+                    mat_id = df[1].loc[df[1][0]=='MATERIAL ID:',[1]].values.flatten()[0]  #material Id
+                    blank = ' '.join(df[1].loc[df[1][0]=='BLANK:',[1]].values.flatten()[0].split()[:5])  
+                    blank1=blank.split('x')[-1] #blank
+                    scrap = float(df[1].loc[df[1][0]=='SCRAP:',[1]].values.flatten()[0].split()[0]) #Scrap
+                    time = ''.join(df[1].loc[df[1][0]=='MACHINING TIME:',[1]].values.flatten()[0].split()[:5])    #Machine Time
+                    prog_runs = int(df[1].loc[df[1][0]=='NUMBER OF PROGRAMME RUNS:',[1]].values.flatten()[0]) #Number of program Runs
+                    StockCode=''
+                    b=' '.join(df[1].loc[df[1][0]=='BLANK:',[1]].values.flatten()[0].split()[:3]) 
+                    Square_meter=((int(b.split('x')[0])*int(b.split('x')[1]))/1000000)
+                    Total_Square_meter=((int(b.split('x')[0])*int(b.split('x')[1]))/1000000)*prog_runs
+                    from datetime import datetime
+                    pt = datetime.strptime(time,'%H:%M:%S')
+                    total_seconds = pt.second + pt.minute*60 + pt.hour*3600
+                    total_seconds1=total_seconds*prog_runs
+                    import datetime as dt
+                    a=dt.timedelta(seconds=total_seconds1)
+                    aa=str(a)
+                    data = {'Description': Description,
+                        'PROGRAM NAME:':prog_name,
+                            'Thickness':blank1,
+                            'BLANK:(mm)':blank,
+                            'Scrap %':scrap,
+                            'MACHINING TIME:[h:min:s]':time,
+                            'NUMBER OF PROGRAMME RUNS:':prog_runs,
+                            'Total_Time:':aa
+                             }
+                    data1= {'StockCode':StockCode,'Description': Description,'Square meter':Square_meter,
+                            'NUMBER OF PROGRAMME RUNS:':prog_runs,
+                           'Total Square meter':Total_Square_meter}
+                    data2= {'StockCode':StockCode,'Description': ' ',
+                           'Total Square meter':' '}
+                            
+                    d.append(data)
+                    d1.append(data1)
+                    d2.append(data2)
+                df2 = pd.DataFrame(d)
+                df2.set_index('Description')
+                dfA2 = pd.DataFrame(d1)
+                dfA2.set_index('StockCode', inplace=True)
+                dfAA2 = pd.DataFrame(d2)
+                dfAA2.set_index('StockCode', inplace=True)
+                timeList=list(df2['Total_Time:'])
+                totalSecs = 0
+                for tm in timeList:
+                    timeParts = [int(s) for s in tm.split(':')]
+                    totalSecs += (timeParts[0] * 60 + timeParts[1]) * 60 + timeParts[2]
+                totalSecs, sec = divmod(totalSecs, 60)
+                hr, mint = divmod(totalSecs, 60)
+                Ss=str(hr)+str(':')+str(mint)+str(':')+str(sec)
+                
+    
+                
+                
+                appended_data = []
+                appended_data1 = []
+                for i in list(links):
+                    df = pd.read_html(i)
+                    PANEL_TYPE=' '
+                    num = list(df[5].loc[df[5][1]=='NUMBER:',[2]].values.flatten())    #Number
+#                     prog_runs = int(df[1][1][14]) #Number of program Runs
+                    prog_runs = int(df[1].loc[df[1][0]=='NUMBER OF PROGRAMME RUNS:',[1]].values.flatten()[0])
+                    weight = list(df[5].loc[df[5][1]=='WEIGHT:',[2]].values.flatten())     #weight
+                    dim = list(df[5].loc[df[5][1]=='DIMENSIONS:',[2]].values.flatten())  #dimension
+                    surface = list(df[5].loc[df[5][1]=='SURFACE:',[2]].values.flatten())         #surface
+                    geo_f_name = list(df[5].loc[df[5][1]=='GEOFILE NAME:',[2]].values.flatten())  #geo file name
+                    prog_name = list(df[1].loc[df[1][0]=='PROGRAM NAME:',[1]].values.flatten())[0].split()[0]
+                    data = {'PROGRAM NAME:':prog_name,
+                            'NUMBER OF PROGRAMME RUNS:':prog_runs,
+                            'PANEL TYPE:': PANEL_TYPE,
+                                'GEOFILE NAME:':geo_f_name,
+                                'NUMBER:':num,
+                              'TOTAL QTY:':' ',
+                            'Weight (kg)':weight,
+                            'TOTAL WEIGHT:':' ',
+                                'DIMENSIONS:':dim,
+                            'SURFACE:':surface,
+                           'TOTAL PAINT SURFACE:':' ',
+                           'Foam qty(kg)':' ',
+                           'TOTAL FOAM QTY (KG):':' ',
+                           'CAPS LENGTH:':' ',
+                           'TOTAL CAPS LEN:':' ',
+                           'CAPS WIDTH:':' ',
+                           'TOTAL CAPS WIDTH:':' ',
+                           'Gasket length:':' ',
+                           'TOTAL GASKET:':' '}
+                            
+                    appended_data.append(pd.DataFrame(data))
+                df3 = pd.concat(appended_data)
+                df3.reset_index(inplace=True,drop=True)
+                for i in range(len(df3['Weight (kg)'])):
+                    df3['Weight (kg)'][i] = float(df3['Weight (kg)'][i].split()[0])
+                    mul1=int(df3['NUMBER:'][i])
+                    mul2=int(df3['NUMBER OF PROGRAMME RUNS:'][i])
+                    df3['TOTAL QTY:'][i]=mul1*mul2
+                    print(df3['NUMBER:'][i],df3['TOTAL QTY:'][i],df3['NUMBER OF PROGRAMME RUNS:'][i])
+                    df3['TOTAL WEIGHT:'][i]=df3['Weight (kg)'][i]*int(df3['TOTAL QTY:'][i])
+                    df3['GEOFILE NAME:'][i]=df3['GEOFILE NAME:'][i].split('\\')[-1].split('.')[0]
+#                     df31['GEOFILE NAME:'][i]=df31['GEOFILE NAME:'][i].split('\\')[-1].split('.')[0]
+                    df3['DIMENSIONS:'][i] = ' '.join(df3['DIMENSIONS:'][i].split()[:3])
+                    df3['SURFACE:'][i] = float(df3['SURFACE:'][i].split()[0])
+                    df3['TOTAL PAINT SURFACE:'][i]=(df3['SURFACE:'][i]/4)*int(df3['TOTAL QTY:'][i])
+                    Dim=df3['DIMENSIONS:'][i].split()
+                    a=round(float(Dim[0]))
+                    b=round(float(Dim[2]))
+                    df3['Foam qty(kg)'][i]=(((a-54) *(b-54)) * 30 * 40 )/1000000000
+                    df3['TOTAL FOAM QTY (KG):'][i]= float(df3['Foam qty(kg)'][i])*float(df3['TOTAL QTY:'][i])
+                    df3['CAPS LENGTH:'][i]=float(df3['TOTAL QTY:'][i])*(round((((a)-142)/600),0)+1)
+                    df3['TOTAL CAPS LEN:'][i]=float(df3['CAPS LENGTH:'][i])*float(df3['TOTAL QTY:'][i])
+                    df3['CAPS WIDTH:'][i]=float(df3['TOTAL QTY:'][i])* (round((((b)-142)/600),0)+1)
+                    df3['TOTAL CAPS WIDTH:'][i]=float(df3['TOTAL QTY:'][i])*float(df3['CAPS WIDTH:'][i])
+                    df3['Gasket length:'][i]=2*((a-30)+(b-30))/1000
+                    df3['TOTAL GASKET:'][i]=df3['Gasket length:'][i]*float(df3['TOTAL QTY:'][i])
+                df3.set_index('PROGRAM NAME:', inplace=True)
+
+                List=list(set(list(df3['GEOFILE NAME:'])))
+                data1={'GEOFILE NAME1:':List,'TYPE OF PANEL:':' ','TOTAL QTY1:':' ','Total Weight (kg):':' ',
+                      'TOTAL FOAM QTY:':' ',
+                       'total caps ( LENGTH+ WIDTH)':' ',
+                       'Total gasket':' ',
+                      'TOTAL PAINT':' '}
+                df31=pd.DataFrame(data1)
+                df31.reset_index(inplace=True,drop=True)
+                df31.set_index('GEOFILE NAME1:', inplace=True)
+                for j in range(len(List)):
+                    a=list(df3['GEOFILE NAME:'])
+                    check=str(List[j])
+                    IND=[index for index in range(len(a)) if a[index] == check]
+                    aa=list(df3['TOTAL QTY:'])
+                    aa1=list(df3['Weight (kg)'])
+                    aa2=list(df3['Foam qty(kg)'])
+                    aa3=list(df3['Gasket length:'])
+                    aa4=list(df3['TOTAL PAINT SURFACE:'])
+                    aaa=list(df3['TOTAL CAPS LEN:'])
+                    bbb=list(df3['TOTAL CAPS WIDTH:'])
+                    summ=sum(int(aa[i]) for i in IND)
+                    summ1=sum(int(aa1[i]) for i in IND)
+                    summ2=sum(int(aa2[i]) for i in IND)
+                    summ3=sum(int(aa3[i]) for i in IND)
+                    summ4=sum(int(aa4[i]) for i in IND)
+                    summ5=sum(int(aaa[i])+int(bbb[i]) for i in IND)
+                    df31['TOTAL QTY1:'][j]=summ
+                    df31['Total Weight (kg):'][j]=summ1
+                    df31['TOTAL FOAM QTY:'][j]=summ2
+                    df31['Total gasket'][j]=summ3
+                    df31['total caps ( LENGTH+ WIDTH)']=summ5
+                    df31['TOTAL PAINT'][j]=summ4
+                        
+                    
+                
+                
+                appended_data = []
+        
+                for i in list(links):
+                    df = pd.read_html(i)
+                            
+                    df[3].drop(0,axis=0,inplace=True)
+                    df[3].drop(len(df[3]),axis=0,inplace=True)
+                    df[3].columns = list(df[3].loc[1,:].values.flatten())
+                    df[3].drop(1,axis=0,inplace=True)
+                    df[3].reset_index(inplace=True,drop=True)
+                    if otherVer:
+                        df[3]=df[3][~df[3]['IDENT NO'].str.contains("QUANTITY|Catridge",case=False)]
+                    
+                    prog_runs = int(df[1].loc[df[1][0]=='NUMBER OF PROGRAMME RUNS:',[1]].values.flatten()[0]) #Number of program Runs
+                    prog_name = list(df[1].loc[df[1][0]=='PROGRAM NAME:',[1]].values.flatten())[0].split()[0]
+                    id_num = list(df[3]['IDENT NO'].values.flatten())
+                    remark = list(df[3]['REMARK'].values.flatten())
+                    stockes = list(df[3]['STROKES'].values.flatten())
+        
+                            
+                    data = {'PROGRAM NAME:':prog_name,
+                                'NUMBER OF PROGRAMME RUNS:':prog_runs,
+                                'IDENT NO':id_num,
+                                'REMARK:':remark,
+                                'STROKES':stockes}
+
+                    appended_data.append(pd.DataFrame(data))
+                df4 = pd.concat(appended_data)
+                df4.set_index('PROGRAM NAME:', inplace=True)
+                
+                appended_data = []
+        
+                for i in list(links):
+                    df = pd.read_html(i)
+                            
+                            
+                            
+                    num = list(df[5].loc[df[5][1]=='NUMBER:',[2]].values.flatten())    #Number
+                    geo_f_name = list(df[5].loc[df[5][1]=='GEOFILE NAME:',[2]].values.flatten())  #geo file name
+                    prog_name = list(df[1].loc[df[1][0]=='PROGRAM NAME:',[1]].values.flatten())[0].split()[0]
+                    l = df[1].loc[df[1][0]=='BLANK:',[1]].values.flatten()[0].split()[0]   #lenght
+                    w = df[1].loc[df[1][0]=='BLANK:',[1]].values.flatten()[0].split()[2]    #width
+                    t = df[1].loc[df[1][0]=='BLANK:',[1]].values.flatten()[0].split()[4]  #thickness
+                            
+                            
+        
+                            
+                    data = {'GEOFILE NAME:':geo_f_name,
+                                'PROGRAM NAME:':prog_name,
+                                'Required Qty.':'',
+                                'NUMBER:':num,
+                                'Remark':'',
+                                'Sheet Thikness':t,
+                                'Length':l,
+                                'Width':w}
+                            
+                    appended_data.append(pd.DataFrame(data))
+                df5 = pd.concat(appended_data)
+                df5.reset_index(inplace=True,drop=True)
+                for i in range(len(df5['GEOFILE NAME:'])):
+                    df5['GEOFILE NAME:'][i] = df5['GEOFILE NAME:'][i].split('\\')[-1].split('.')[0]
+                df5.set_index('GEOFILE NAME:', inplace=True)
+        
+                
+                
+                now = datetime.now()
+
+                dt_string = now.strftime("%d-%m-%Y-%H-%M-%S")
+        
+                
+                if self.t1.text()==self.defaultText:
+                    desktopPath=r"C:/NC/"
+                    if not os.path.exists(desktopPath):
+                        os.makedirs(desktopPath)
+
+                    out_path=desktopPath+dt_string+'.xlsx'
+                else:    
+                    out_path=self.t1.text()+dt_string+'.xlsx'
+                writer = pd.ExcelWriter(out_path, engine='xlsxwriter')
+        
+                df1.to_excel(writer, sheet_name='Master NC')
+                df2.to_excel(writer, sheet_name='BOM',startrow=0)
+                dfA2.to_excel(writer, sheet_name='BOM',startcol=10,startrow=0)
+                dfAA2.to_excel(writer, sheet_name='BOM',startcol=17,startrow=0)
+                df3.to_excel(writer, sheet_name='Master Parts NC')
+                df31.to_excel(writer, sheet_name='Master Parts NC',startcol=30,startrow=0)
+                df4.to_excel(writer, sheet_name='Tool Utilization')
+        
+                df5.to_excel(writer, sheet_name='Stickers')
+#                 print(list(df2['Total_Time']))
+                workbook  = writer.book
+                worksheet = writer.sheets['BOM']
+                limi='L'+str(len(links)+1)
+                limiA='O'+str(len(links)+1)
+                for i in range(2,len(links)+2):
+                    worksheet.write_formula('K{}'.format(i),'=IF(B2:B1048576="GI 2x1220x1650","005J00025-018",IF(B2:B1048576="GI 3","234",IF(B2:B1048576="GI 1","345",IF(B2:B1048576="GI 1.5","456",IF(B2:B1048576="GI 0.6","567",IF(B2:B1048576="PRE-PAINTED GI 0.6","678",IF(B2:B1048576="SS 1.2","789",IF(B2:B1048576="AL 1.5","891",""))))))))')
+                    worksheet.write_formula('L{}'.format(i),'=IF(B2:B1048576="GI 2","GI 2",IF(B2:B1048576="GI 3","GI 3",IF(B2:B1048576="GI 1","GI 1",IF(B2:B1048576=" GI 1.5","GI 1.5",IF(B2:B1048576=" GI 0.6","GI 0.6",IF(B2:B1048576="PRE-PAINTED GI 0.6","PRE-PAINTED GI 0.6",IF(B2:B1048576="AL 1.5","AL 1.5",IF(B2:B1048576="SS 1.2","SS 1.2",""))))))))')
+                worksheet.write_string('I{}'.format(len(links)+4),Ss)
+                worksheet.write_string('S2','GI 2X1220X1650')
+                worksheet.write_string('R2','005J00025-018')
+                worksheet.write_formula('T2', '=SUMIF(L2:L1048576,"*GI 2*",O2:O1048576)')
+                worksheet.write_string('S3','GI 3')
+                worksheet.write_string('R3','234')
+                worksheet.write_formula('T3', '=SUMIF(L2:L1048576,"*GI 3*",O2:O1048576)')
+                worksheet.write_string('S4','GI 1')
+                worksheet.write_string('R4','345')
+                worksheet.write_formula('T4', '=SUMIF(L2:L1048576,"*GI 1*",O2:O1048576)')
+                worksheet.write_string('S5','GI 1.5')
+                worksheet.write_string('R5','456')
+                worksheet.write_formula('T5', '=SUMIF(L2:L1048576,"*GI 1.5*",O2:O1048576)')
+                worksheet.write_string('S6','GI 0.6')
+                worksheet.write_string('R6','567')
+                worksheet.write_formula('T6', '=SUMIF(L2:L1048576,"*GI 0.6*",O2:O1048576)')
+                worksheet.write_string('S7','SS 1.2')
+                worksheet.write_string('R7','678')
+                worksheet.write_formula('T7', '=SUMIF(L2:L1048576,"*SS 1.2*",O2:O1048576)')
+                worksheet.write_string('S8','AL 1.5')
+                worksheet.write_string('R8','789')
+                worksheet.write_formula('T8', '=SUMIF(L2:L1048576,"*AL 1.5*",O2:O1048576)')
+                worksheet.write_string('S9','PRE-PAINTED GI 0.6')
+                worksheet.write_string('R9','891')
+                worksheet.write_formula('T9', '=SUMIF(L2:L1048576,"*PRE-PAINTED GI 0.6*",O2:O1048576)')
+                writer.save()
+                
+                if self.t1.text()==self.defaultText:
+                    QMessageBox.about(self, "Sucess", "Your File is Generated at C:/NC/")
+                else:
+                    QMessageBox.about(self, "Sucess", "Your File is Generated at "+self.t1.text())
+
+        
+
+            except Exception as e:
+                print(e)
+                pass
+
+except Exception as err:
+    print(err)
+    pass
+     
+#def main():
+#    app = QApplication(sys.argv)
+# 
+#    demo = AppDemo()
+#    demo.show()
+# 
+#    sys.exit(app.exec_())
+    
+
+if __name__ == '__main__':
+
+     app = QApplication(sys.argv)
+ 
+     demo = AppDemo()
+     demo.show()
+ 
+     sys.exit(app.exec_())
